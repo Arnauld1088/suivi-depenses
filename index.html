@@ -362,10 +362,6 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--bg2)}
     <div class="card-title"><i class="ti ti-users"></i>Utilisateurs <span id="admin-user-count" style="font-size:11px;color:var(--txt3);font-weight:400"></span></div>
     <div id="admin-users-list"><div style="padding:2rem;text-align:center;color:var(--txt3);font-size:13px">Chargement…</div></div>
   </div>
-  <div class="card" id="admin-chart-card" style="display:none;margin-bottom:1rem">
-    <div class="card-title"><i class="ti ti-chart-bar"></i>Soldes par utilisateur</div>
-    <div style="max-height:260px"><canvas id="admin-chart"></canvas></div>
-  </div>
   <div class="card" id="admin-detail-card" style="display:none">
     <div class="card-title"><i class="ti ti-user"></i><span id="admin-detail-title">Détail utilisateur</span>
       <button class="btn-sm" style="margin-left:auto" onclick="closeAdminDetail()"><i class="ti ti-x"></i>Fermer</button>
@@ -458,7 +454,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--bg2)}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, collection, getDocs, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBq9iWe3rjz561w8eumlUYnaTaS1Le_pyQ",
@@ -492,7 +488,6 @@ window._getDoc = getDoc;
 window._setDoc = setDoc;
 window._collection = collection;
 window._getDocs = getDocs;
-window._deleteDoc = deleteDoc;
 window._ADMIN_EMAIL = ADMIN_EMAIL;
 
 // Init auth listener
@@ -659,97 +654,59 @@ function setSyncStatus(status){
 }
 
 /* ── ADMIN ── */
-let adminChartInstance = null;
-
 async function renderAdmin(){
   if(!window._currentUser||window._currentUser.email!==window._ADMIN_EMAIL)return;
   const listEl=document.getElementById('admin-users-list');
-  listEl.innerHTML='<div style="padding:1.5rem;text-align:center;color:var(--txt3);font-size:13px">Chargement…</div>';
-  document.getElementById('admin-chart-card').style.display='none';
+  listEl.innerHTML='<div style="padding:1.5rem;text-align:center;color:var(--txt3);font-size:13px">Chargement des utilisateurs…</div>';
   try{
     const snap=await window._getDocs(window._collection(window._db,'users'));
     const users=[];
     snap.forEach(d=>users.push({uid:d.id,...d.data()}));
     document.getElementById('admin-user-count').textContent='('+users.length+' compte'+(users.length>1?'s':'')+')';
     let totalTx=0,totalSolde=0;
-    const chartLabels=[],chartSoldes=[],chartColors=[];
     users.forEach(u=>{
       totalTx+=(u.data||[]).length;
       const c=(u.data||[]).reduce((s,r)=>s+(r.credit||0),0);
       const d=(u.data||[]).reduce((s,r)=>s+(r.debit||0),0);
-      const sol=c-d;totalSolde+=sol;
-      chartLabels.push(u.prefs?.nom||u.uid.substring(0,8));
-      chartSoldes.push(Math.round(sol));
-      chartColors.push(sol>=0?'rgba(22,163,74,.75)':'rgba(220,38,38,.75)');
+      totalSolde+=c-d;
     });
     document.getElementById('admin-stats').innerHTML=`
       <div class="stat"><div class="stat-label">Utilisateurs</div><div class="stat-value">${users.length}</div></div>
       <div class="stat"><div class="stat-label">Total transactions</div><div class="stat-value">${totalTx}</div></div>
-      <div class="stat"><div class="stat-label">Solde total</div><div class="stat-value" style="color:${totalSolde>=0?'var(--grn)':'var(--red)'}">${Math.round(totalSolde).toLocaleString('fr-FR')} F</div></div>
+      <div class="stat"><div class="stat-label">Solde total (tous)</div><div class="stat-value" style="color:${totalSolde>=0?'var(--grn)':'var(--red)'}">${Math.round(totalSolde).toLocaleString('fr-FR')} F</div></div>
     `;
-    if(users.length>0){
-      document.getElementById('admin-chart-card').style.display='block';
-      const isDark=document.body.dataset.theme==='dark';
-      const gc=isDark?'rgba(255,255,255,.07)':'rgba(0,0,0,.06)',tc='#71717a';
-      if(adminChartInstance)adminChartInstance.destroy();
-      adminChartInstance=new Chart(document.getElementById('admin-chart').getContext('2d'),{
-        type:'bar',
-        data:{labels:chartLabels,datasets:[{label:'Solde (F)',data:chartSoldes,backgroundColor:chartColors,borderRadius:5,borderSkipped:false}]},
-        options:{responsive:true,maintainAspectRatio:true,aspectRatio:3,plugins:{legend:{display:false}},scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:11}}},y:{grid:{color:gc},ticks:{color:tc,font:{size:11},callback:v=>Math.round(v).toLocaleString('fr-FR')}}}}
-      });
-    }
     listEl.innerHTML=users.map(u=>{
       const txCount=(u.data||[]).length;
       const credits=(u.data||[]).reduce((s,r)=>s+(r.credit||0),0);
       const debits=(u.data||[]).reduce((s,r)=>s+(r.debit||0),0);
       const solde=credits-debits;
-      const initials=(u.prefs?.nom||u.uid||'?').substring(0,2).toUpperCase();
-      return`<div class="admin-user-card" onclick='showAdminDetail("${u.uid}",${JSON.stringify(u)})'>
+      const initials=(u.prefs?.nom||u.email||'?').substring(0,2).toUpperCase();
+      return`<div class="admin-user-card" onclick="showAdminDetail('${u.uid}',${JSON.stringify(u).replace(/'/g,'&#39;')})">
         <div class="admin-avatar">${initials}</div>
         <div class="admin-user-info">
           <div class="admin-user-email">${u.prefs?.nom||'—'} <span style="font-size:11px;color:var(--txt3)">(${u.uid.substring(0,8)}…)</span></div>
-          <div class="admin-user-stats">${txCount} transaction(s) · MAJ : ${u.updatedAt?.substring(0,10)||'—'}</div>
+          <div class="admin-user-stats">${txCount} transaction(s) · Mise à jour : ${u.updatedAt?.substring(0,10)||'—'}</div>
         </div>
         <div class="admin-user-solde" style="color:${solde>=0?'var(--grn)':'var(--red)'}">${Math.round(solde).toLocaleString('fr-FR')} F</div>
         <i class="ti ti-chevron-right" style="color:var(--txt3);font-size:14px"></i>
       </div>`;
     }).join('');
   }catch(e){
-    listEl.innerHTML='<div style="padding:1.5rem;text-align:center;color:var(--red);font-size:13px">Erreur : '+e.message+'</div>';
+    listEl.innerHTML='<div style="padding:1.5rem;text-align:center;color:var(--red);font-size:13px">Erreur de chargement : '+e.message+'</div>';
   }
 }
 
 window.showAdminDetail = function(uid, userData){
   if(typeof userData==='string')userData=JSON.parse(userData);
   const card=document.getElementById('admin-detail-card');
+  const title=document.getElementById('admin-detail-title');
   card.style.display='block';
-  document.getElementById('admin-detail-title').textContent=(userData.prefs?.nom||uid.substring(0,8));
+  title.textContent=(userData.prefs?.nom||uid.substring(0,8));
   const data=userData.data||[];
   const credits=data.reduce((s,r)=>s+(r.credit||0),0);
   const debits=data.reduce((s,r)=>s+(r.debit||0),0);
   const solde=credits-debits;
-  const sorted=[...data].sort((a,b)=>new Date(b.date)-new Date(a.date));
-  const PAGE=50;
-  window._adminDetailData={sorted,page:0,PAGE};
-
-  function renderPage(){
-    const{page,PAGE,sorted}=window._adminDetailData;
-    const slice=sorted.slice(page*PAGE,(page+1)*PAGE);
-    const pages=Math.ceil(sorted.length/PAGE)||1;
-    document.getElementById('admin-tx-body').innerHTML=slice.map(r=>`<tr>
-      <td>${r.date||'-'}</td>
-      <td title="${(r.designation||'').replace(/"/g,'&quot;')}">${(r.designation||'-').substring(0,30)}</td>
-      <td style="text-align:right" class="r">${r.debit?Math.round(r.debit).toLocaleString('fr-FR')+' F':''}</td>
-      <td style="text-align:right" class="g">${r.credit?Math.round(r.credit).toLocaleString('fr-FR')+' F':''}</td>
-      <td><span class="badge">${r.moyen||'-'}</span></td>
-      <td>${r.categorie||'-'}</td>
-    </tr>`).join('');
-    document.getElementById('admin-page-info').textContent=`Page ${page+1}/${pages} · ${sorted.length} lignes`;
-    document.getElementById('admin-prev-btn').disabled=page===0;
-    document.getElementById('admin-next-btn').disabled=page>=pages-1;
-  }
-  window._adminDetailData.renderPage=renderPage;
-
+  const recent=[...data].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,10);
   document.getElementById('admin-detail-body').innerHTML=`
     <div class="stat-grid" style="margin-bottom:1rem">
       <div class="stat"><div class="stat-label">Transactions</div><div class="stat-value">${data.length}</div></div>
@@ -757,49 +714,14 @@ window.showAdminDetail = function(uid, userData){
       <div class="stat"><div class="stat-label">Total débits</div><div class="stat-value r">${Math.round(debits).toLocaleString('fr-FR')} F</div></div>
       <div class="stat"><div class="stat-label">Solde</div><div class="stat-value" style="color:${solde>=0?'var(--grn)':'var(--red)'}">${Math.round(solde).toLocaleString('fr-FR')} F</div></div>
     </div>
-    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-      <button class="btn btn-primary" onclick="adminExportCSV('${uid}')"><i class="ti ti-download"></i>Exporter CSV</button>
-      <button class="btn-sm" style="color:var(--red);border-color:var(--red)" onclick="adminDeleteUser('${uid}')"><i class="ti ti-trash"></i>Supprimer les données</button>
-    </div>
-    <div style="overflow-x:auto;border:.5px solid var(--brd);border-radius:8px;margin-bottom:8px">
-      <table><thead><tr>
-        <th style="width:90px">Date</th><th>Désignation</th>
-        <th style="text-align:right;width:90px">Débit</th><th style="text-align:right;width:90px">Crédit</th>
-        <th style="width:80px">Moyen</th><th style="width:90px">Catégorie</th>
-      </tr></thead><tbody id="admin-tx-body"></tbody></table>
-    </div>
-    <div style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--txt2)">
-      <button class="btn-sm" id="admin-prev-btn" onclick="adminPagePrev()"><i class="ti ti-arrow-left"></i>Préc.</button>
-      <span id="admin-page-info"></span>
-      <button class="btn-sm" id="admin-next-btn" onclick="adminPageNext()"><i class="ti ti-arrow-right"></i>Suiv.</button>
+    <div style="font-size:12px;font-weight:600;color:var(--txt2);margin-bottom:8px">10 dernières transactions</div>
+    <div style="overflow-x:auto;border:.5px solid var(--brd);border-radius:8px">
+      <table><thead><tr><th>Date</th><th>Désignation</th><th style="text-align:right">Débit</th><th style="text-align:right">Crédit</th><th>Moyen</th></tr></thead>
+      <tbody>${recent.map(r=>`<tr><td>${r.date||'-'}</td><td>${(r.designation||'-').substring(0,30)}</td><td style="text-align:right" class="r">${r.debit?Math.round(r.debit).toLocaleString('fr-FR')+' F':''}</td><td style="text-align:right" class="g">${r.credit?Math.round(r.credit).toLocaleString('fr-FR')+' F':''}</td><td><span class="badge">${r.moyen||'-'}</span></td></tr>`).join('')}</tbody>
+      </table>
     </div>
   `;
-  renderPage();
   card.scrollIntoView({behavior:'smooth'});
-}
-
-window.adminPagePrev=function(){if(window._adminDetailData&&window._adminDetailData.page>0){window._adminDetailData.page--;window._adminDetailData.renderPage()}}
-window.adminPageNext=function(){if(!window._adminDetailData)return;const{sorted,PAGE}=window._adminDetailData;if(window._adminDetailData.page<Math.ceil(sorted.length/PAGE)-1){window._adminDetailData.page++;window._adminDetailData.renderPage()}}
-
-window.adminExportCSV=function(uid){
-  if(!window._adminDetailData)return;
-  const{sorted}=window._adminDetailData;
-  const hdr='Date,Désignation,Débit,Crédit,Moyen,Catégorie\n';
-  const rows=sorted.map(r=>[r.date,'"'+(r.designation||'').replace(/"/g,'""')+'"',r.debit||0,r.credit||0,r.moyen||'',r.categorie||''].join(',')).join('\n');
-  const blob=new Blob(['\uFEFF'+hdr+rows],{type:'text/csv;charset=utf-8'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download='user_'+uid.substring(0,8)+'_'+new Date().toISOString().slice(0,10)+'.csv';
-  a.click();showToast('CSV exporté ✓');
-}
-
-window.adminDeleteUser=async function(uid){
-  if(!confirm('⚠ Supprimer TOUTES les données Firestore de cet utilisateur ?\n\nNote : le compte Firebase Auth reste actif.\nCette action est irréversible.'))return;
-  try{
-    await window._deleteDoc(window._doc(window._db,'users',uid));
-    showToast('Données supprimées ✓');
-    document.getElementById('admin-detail-card').style.display='none';
-    renderAdmin();
-  }catch(e){showToast('Erreur : '+e.message)}
 }
 
 function closeAdminDetail(){
@@ -1027,7 +949,7 @@ function impParseDate(v){if(!v&&v!==0)return null;if(v instanceof Date)return im
 function impFmtDate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function impParseAmt(v){if(!v&&v!==0)return null;if(typeof v==='number')return Math.abs(v);const s=String(v).replace(/\s/g,'').replace(/[^\d,.\-\+]/g,'').replace(',','.');const n=parseFloat(s);return isNaN(n)?null:Math.abs(n)}
 function impIsNeg(v){const s=String(v).trim();return s.startsWith('-')||s.startsWith('(')}
-function impDoImport(){impClearLog(4);impMapped=[];const gi=id=>{const v=document.getElementById(id).value;return v===''?-1:parseInt(v)};const iDate=gi('im-date'),iDesig=gi('im-desig'),iDebit=gi('im-debit'),iCredit=gi('im-credit'),iMontant=gi('im-montant'),iSens=gi('im-sens'),iMoyen=gi('im-moyen'),iCat=gi('im-cat');const skipZero=document.getElementById('im-skip-zero').value==='1';const moyenDef=(document.getElementById('im-moyen-def').value||'').trim()||S.moyens[0]||'espèces';const sensD=(document.getElementById('im-sens-d').value||'').toLowerCase().trim();const sensC=(document.getElementById('im-sens-c').value||'').toLowerCase().trim();if(iDate<0){showToast('Sélectionne la colonne Date');return}if(iDesig<0){showToast('Sélectionne la colonne Désignation');return}if(iDebit<0&&iCredit<0&&iMontant<0){showToast('Sélectionne au moins une colonne montant');return}let ok=0,dateErr=0,amtErr=0;impRawRows.forEach((row,ri)=>{const dateStr=impParseDate(row[iDate]);if(!dateStr){dateErr++;return}const desig=String(row[iDesig]||'').trim();let debit=0,credit=0;if(iDebit>=0&&iCredit>=0){debit=impParseAmt(row[iDebit])||0;credit=impParseAmt(row[iCredit])||0}else if(iMontant>=0){const rawAmt=row[iMontant];const amt=impParseAmt(rawAmt)||0;if(iSens>=0){const sv=String(row[iSens]||'').toLowerCase().trim();if(sensD&&sv.includes(sensD))debit=amt;else if(sensC&&sv.includes(sensC))credit=amt;else{impIsNeg(rawAmt)?debit=amt:credit=amt}}else{impIsNeg(rawAmt)?debit=amt:credit=amt}}else if(iDebit>=0){debit=impParseAmt(row[iDebit])||0}else if(iCredit>=0){credit=impParseAmt(row[iCredit])||0}if(!debit&&!credit){amtErr++;return}if(skipZero&&!debit&&!credit)return;const moyenRaw=iMoyen>=0?String(row[iMoyen]||'').trim():'';const catRaw=iCat>=0?String(row[iCat]||'').trim():'';const moyen=S.moyens.includes(moyenRaw)?moyenRaw:(moyenRaw||moyenDef);const cat=S.cats.includes(catRaw)?catRaw:(S.cats.find(c=>catRaw.toLowerCase().includes(c.toLowerCase()))||'');impMapped.push({id:Date.now().toString()+ri,date:dateStr,designation:desig||'—',debit,credit,moyen,categorie:cat});ok++});impLog(4,'Lues : <strong>'+impRawRows.length+'</strong>','info');impLog(4,'✓ Valides : <strong>'+ok+'</strong>','ok');if(dateErr)impLog(4,'⚠ Date invalide : '+dateErr,'warn');if(amtErr)impLog(4,'⚠ Montant absent : '+amtErr,'warn');const totalD=impMapped.reduce((s,r)=>s+(r.debit||0),0),totalC=impMapped.reduce((s,r)=>s+(r.credit||0),0);document.getElementById('imp-pills').innerHTML=`<div class="imp-pill b"><i class="ti ti-list"></i>${ok} tx</div><div class="imp-pill r"><i class="ti ti-arrow-up"></i>${fmt(totalD)}</div><div class="imp-pill g"><i class="ti ti-arrow-down"></i>${fmt(totalC)}</div>`;if(impMapped.length){document.getElementById('imp-result-card').style.display='block';document.getElementById('imp-result-count').textContent='('+impMapped.length+' lignes)';const rows=impMapped.slice(0,40).map(r=>`<tr><td style="color:var(--grn);font-size:12px;padding:5px 8px">${r.date}</td><td style="font-size:12px;padding:5px 8px">${r.designation.length>28?r.designation.substring(0,28)+'…':r.designation}</td><td style="text-align:right;color:var(--red);font-size:12px;padding:5px 8px">${r.debit?fmt(r.debit):''}</td><td style="text-align:right;color:var(--grn);font-size:12px;padding:5px 8px">${r.credit?fmt(r.credit):''}</td><td style="font-size:12px;padding:5px 8px">${r.moyen}</td><td style="font-size:12px;padding:5px 8px">${r.categorie||'-'}</td></tr>`).join('');document.getElementById('imp-result-table').innerHTML=`<table><thead><tr><th style="background:var(--bg2);position:sticky;top:0;padding:6px 8px;font-size:11px">Date</th><th style="background:var(--bg2);position:sticky;top:0;padding:6px 8px;font-size:11px">Désignation</th><th style="background:var(--bg2);position:sticky;top:0;padding:6px 8px;font-size:11px;text-align:right">Débit</th><th style="background:var(--bg2);position:sticky;top:0;padding:6px 8px;font-size:11px;text-align:right">Crédit</th><th style="background:var(--bg2);position:sticky;top:0;padding:6px 8px;font-size:11px">Moyen</th><th style="background:var(--bg2);position:sticky;top:0;padding:6px 8px;font-size:11px">Catégorie</th></tr></thead><tbody>${rows}</tbody></table>${impMapped.length>40?'<div style="padding:7px 12px;font-size:12px;color:var(--txt3)">…et '+(impMapped.length-40)+' autres</div>':''}`}impGoStep(4)}
+function impDoImport(){impClearLog(4);impMapped=[];const gi=id=>{const v=document.getElementById(id).value;return v===''?-1:parseInt(v)};const iDate=gi('im-date'),iDesig=gi('im-desig'),iDebit=gi('im-debit'),iCredit=gi('im-credit'),iMontant=gi('im-montant'),iSens=gi('im-sens'),iMoyen=gi('im-moyen'),iCat=gi('im-cat');const skipZero=document.getElementById('im-skip-zero').value==='1';const moyenDef=(document.getElementById('im-moyen-def').value||'').trim()||S.moyens[0]||'espèces';const sensD=(document.getElementById('im-sens-d').value||'').toLowerCase().trim();const sensC=(document.getElementById('im-sens-c').value||'').toLowerCase().trim();if(iDate<0){showToast('Sélectionne la colonne Date');return}if(iDesig<0){showToast('Sélectionne la colonne Désignation');return}if(iDebit<0&&iCredit<0&&iMontant<0){showToast('Sélectionne au moins une colonne montant');return}let ok=0,dateErr=0,amtErr=0;impRawRows.forEach((row,ri)=>{const dateStr=impParseDate(row[iDate]);if(!dateStr){dateErr++;return}const desig=String(row[iDesig]||'').trim();let debit=0,credit=0;if(iDebit>=0&&iCredit>=0){debit=impParseAmt(row[iDebit])||0;credit=impParseAmt(row[iCredit])||0}else if(iMontant>=0){const rawAmt=row[iMontant];const amt=impParseAmt(rawAmt)||0;if(iSens>=0){const sv=String(row[iSens]||'').toLowerCase().trim();if(sensD&&sv.includes(sensD))debit=amt;else if(sensC&&sv.includes(sensC))credit=amt;else{impIsNeg(rawAmt)?debit=amt:credit=amt}}else{impIsNeg(rawAmt)?debit=amt:credit=amt}}else if(iDebit>=0){debit=impParseAmt(row[iDebit])||0}else if(iCredit>=0){credit=impParseAmt(row[iCredit])||0}if(!debit&&!credit){amtErr++;return}if(skipZero&&!debit&&!credit)return;const moyenRaw=iMoyen>=0?String(row[iMoyen]||'').trim():'';const catRaw=iCat>=0?String(row[iCat]||'').trim():'';const moyen=S.moyens.includes(moyenRaw)?moyenRaw:(moyenRaw||moyenDef);const cat=S.cats.includes(catRaw)?catRaw:(S.cats.find(c=>catRaw.toLowerCase().includes(c.toLowerCase()))||catRaw);impMapped.push({id:Date.now().toString()+ri,date:dateStr,designation:desig||'—',debit,credit,moyen,categorie:cat});ok++});impLog(4,'Lues : <strong>'+impRawRows.length+'</strong>','info');impLog(4,'✓ Valides : <strong>'+ok+'</strong>','ok');if(dateErr)impLog(4,'⚠ Date invalide : '+dateErr,'warn');if(amtErr)impLog(4,'⚠ Montant absent : '+amtErr,'warn');const totalD=impMapped.reduce((s,r)=>s+(r.debit||0),0),totalC=impMapped.reduce((s,r)=>s+(r.credit||0),0);document.getElementById('imp-pills').innerHTML=`<div class="imp-pill b"><i class="ti ti-list"></i>${ok} tx</div><div class="imp-pill r"><i class="ti ti-arrow-up"></i>${fmt(totalD)}</div><div class="imp-pill g"><i class="ti ti-arrow-down"></i>${fmt(totalC)}</div>`;if(impMapped.length){document.getElementById('imp-result-card').style.display='block';document.getElementById('imp-result-count').textContent='('+impMapped.length+' lignes)';const rows=impMapped.slice(0,40).map(r=>`<tr><td style="color:var(--grn);font-size:12px;padding:5px 8px">${r.date}</td><td style="font-size:12px;padding:5px 8px">${r.designation.length>28?r.designation.substring(0,28)+'…':r.designation}</td><td style="text-align:right;color:var(--red);font-size:12px;padding:5px 8px">${r.debit?fmt(r.debit):''}</td><td style="text-align:right;color:var(--grn);font-size:12px;padding:5px 8px">${r.credit?fmt(r.credit):''}</td><td style="font-size:12px;padding:5px 8px">${r.moyen}</td><td style="font-size:12px;padding:5px 8px">${r.categorie||'-'}</td></tr>`).join('');document.getElementById('imp-result-table').innerHTML=`<table><thead><tr><th style="background:var(--bg2);position:sticky;top:0;padding:6px 8px;font-size:11px">Date</th><th style="background:var(--bg2);position:sticky;top:0;padding:6px 8px;font-size:11px">Désignation</th><th style="background:var(--bg2);position:sticky;top:0;padding:6px 8px;font-size:11px;text-align:right">Débit</th><th style="background:var(--bg2);position:sticky;top:0;padding:6px 8px;font-size:11px;text-align:right">Crédit</th><th style="background:var(--bg2);position:sticky;top:0;padding:6px 8px;font-size:11px">Moyen</th><th style="background:var(--bg2);position:sticky;top:0;padding:6px 8px;font-size:11px">Catégorie</th></tr></thead><tbody>${rows}</tbody></table>${impMapped.length>40?'<div style="padding:7px 12px;font-size:12px;color:var(--txt3)">…et '+(impMapped.length-40)+' autres</div>':''}`}impGoStep(4)}
 function impConfirm(){if(!impMapped.length){showToast('Aucune donnée');return}const exSet=new Set(S.data.map(r=>r.date+'|'+r.designation+'|'+(r.debit||r.credit)));const newRows=impMapped.filter(r=>!exSet.has(r.date+'|'+r.designation+'|'+(r.debit||r.credit)));S.data=[...S.data,...newRows];const nM=[...new Set(newRows.map(r=>r.moyen).filter(m=>m&&!S.moyens.includes(m)))];const nC=[...new Set(newRows.map(r=>r.categorie).filter(c=>c&&!S.cats.includes(c)))];if(nM.length)S.moyens=[...S.moyens,...nM];if(nC.length)S.cats=[...S.cats,...nC];saveAll();populateSelects();impLog(4,'✓ <strong>'+newRows.length+'</strong> ajoutée(s)','ok');document.getElementById('imp-result-card').style.display='none';renderDashboard();renderStorageInfo();showToast(newRows.length+' importée(s) ✓',3000)}
 function exportImportCSV(){if(!impMapped.length)return;const hdr='Date,Désignation,Débit,Crédit,Moyen,Catégorie\n';const rows=impMapped.map(r=>[r.date,'"'+(r.designation||'').replace(/"/g,'""')+'"',r.debit||0,r.credit||0,r.moyen,r.categorie||''].join(',')).join('\n');const blob=new Blob(['\uFEFF'+hdr+rows],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='import_'+new Date().toISOString().slice(0,10)+'.csv';a.click()}
 function impReset(){impWB=null;impSheets={};impCurrentSheet=null;impRawRows=[];impColNames=[];impMapped=[];[1,2,4].forEach(p=>impClearLog(p));document.getElementById('imp-result-card').style.display='none';document.getElementById('imp-pills').innerHTML='';document.getElementById('imp-file').value='';impGoStep(1)}
