@@ -33,7 +33,11 @@ body{background:var(--bg0);color:var(--txt1)}
 /* APP */
 .app{display:none;flex:1;min-height:100vh}
 .app.visible{display:flex}
-.sidebar{width:215px;flex-shrink:0;background:var(--bg1);border-right:.5px solid var(--brd);display:flex;flex-direction:column;padding:16px 10px;gap:2px;position:fixed;top:0;left:0;height:100vh;z-index:10;overflow-y:auto}
+.sidebar{width:215px;flex-shrink:0;background:var(--bg1);border-right:.5px solid var(--brd);display:flex;flex-direction:column;padding:16px 10px;gap:2px;position:fixed;top:0;left:0;height:100vh;z-index:10;overflow-y:auto;transition:transform .2s}
+.sidebar.collapsed{transform:translateX(-100%)}
+.sb-toggle{position:fixed;top:18px;left:225px;z-index:20;width:28px;height:28px;border-radius:50%;background:var(--bg1);border:.5px solid var(--brd2);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--txt2);transition:left .2s,color .15s;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.sb-toggle:hover{color:var(--txt1)}
+.sidebar.collapsed~.sb-toggle{left:14px}
 .logo-wrap{padding:6px 10px 14px;border-bottom:.5px solid var(--brd);margin-bottom:10px}
 .logo-name{font-size:13px;font-weight:600;color:var(--txt1);line-height:1.3}
 .logo-sub{font-size:10px;color:var(--txt3);margin-top:2px}
@@ -44,7 +48,8 @@ body{background:var(--bg0);color:var(--txt1)}
 .ni{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--txt2);border:none;background:none;width:100%;text-align:left;transition:background .12s,color .12s}
 .ni:hover{background:var(--bg2);color:var(--txt1)}.ni.active{background:var(--bg2);color:var(--txt1);font-weight:500}.ni i{font-size:15px;flex-shrink:0}
 .sep{height:.5px;background:var(--brd);margin:7px 0}.sb-bottom{margin-top:auto;display:flex;flex-direction:column;gap:2px}
-.main{flex:1;margin-left:215px;padding:1.5rem;min-height:100vh;background:var(--bg0)}
+.main{flex:1;margin-left:215px;padding:1.5rem;min-height:100vh;background:var(--bg0);transition:margin-left .2s}
+.main.collapsed{margin-left:0}
 .section{display:none}.section.active{display:block}
 .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:10px}
 .page-title{font-size:18px;font-weight:600;color:var(--txt1)}
@@ -204,11 +209,15 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--bg2)}
 
 <!-- APP -->
 <div class="app" id="app">
-<aside class="sidebar">
+<aside class="sidebar" id="sidebar">
   <div class="logo-wrap">
     <div class="logo-name" id="sb-nom">Suivi de dépenses</div>
     <div class="logo-sub" id="sb-annee">2026</div>
-    <div class="logo-solde" id="sb-solde">—</div>
+    <select id="sb-solde-sel" onchange="changeSoldeView(this.value)" style="width:100%;margin-top:6px;font-size:11px;background:var(--bg2);color:var(--txt2);border:.5px solid var(--brd2);border-radius:6px;padding:4px 6px;outline:none"><option value="">Solde général</option></select>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
+      <div class="logo-solde" id="sb-solde">—</div>
+      <button onclick="toggleAmounts()" title="Masquer/afficher les montants" style="background:none;border:none;cursor:pointer;color:var(--txt3);padding:2px 4px;font-size:15px"><i class="ti ti-eye-off" id="hide-icon"></i></button>
+    </div>
     <div class="user-badge">
       <div class="user-avatar" id="user-avatar">?</div>
       <div class="user-email" id="user-email-display">—</div>
@@ -234,7 +243,9 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--bg2)}
   </div>
 </aside>
 
-<main class="main">
+<button class="sb-toggle" id="sb-toggle" onclick="toggleSidebar()" title="Afficher/masquer le menu"><i class="ti ti-chevron-left" id="sb-toggle-icon"></i></button>
+
+<main class="main" id="main-content">
 <!-- DASHBOARD -->
 <div id="tab-dashboard" class="section active">
   <div class="topbar"><div class="page-title" id="dash-title">Tableau de bord</div><div style="font-size:12px;color:var(--txt3)" id="dash-date"></div></div>
@@ -518,10 +529,13 @@ let S = {
 };
 let editId=null,chartBar=null,chartLine=null,chartPie=null,chartRadar=null,chartCatLine=null;
 let currentPeriod='year',currentPeriodMonth='',budgetView='cat';
+let amountsHidden=false;
+let soldeSelView='';
 let impWB=null,impSheets={},impCurrentSheet=null,impRawRows=[],impColNames=[],impMapped=[];
 let isSaving=false;
 
-function fmt(n){if(!n&&n!==0)return'-';return Math.round(n).toLocaleString('fr-FR')+' '+S.prefs.devise}
+function fmt(n){if(amountsHidden)return'---';if(!n&&n!==0)return'-';return Math.round(n).toLocaleString('fr-FR')+' '+S.prefs.devise}
+function toggleAmounts(){amountsHidden=!amountsHidden;const ic=document.getElementById('hide-icon');if(ic)ic.className='ti '+(amountsHidden?'ti-eye':'ti-eye-off');const sb=document.getElementById('sb-solde');if(sb)sb.style.color=amountsHidden?'var(--txt2)':undefined;renderDashboard();if(document.getElementById('tab-journal').classList.contains('active'))renderJournal();if(document.getElementById('tab-analyse').classList.contains('active'))renderAnalyse();if(document.getElementById('tab-tendance').classList.contains('active'))renderTendance();}
 function fmtK(n){if(!n&&n!==0)return'0';const v=Math.round(n);return v>=1000?(v/1000).toFixed(1)+'k':String(v)}
 
 /* ── AUTH UI ── */
@@ -747,6 +761,21 @@ function cycleTheme(){themeMode=THEMES[(THEMES.indexOf(themeMode)+1)%3];applyThe
 mql.addEventListener('change',()=>{if(themeMode==='auto')applyTheme()});
 document.addEventListener('keydown',e=>{if((e.key==='t'||e.key==='T')&&!e.target.matches('input,select,textarea'))cycleTheme()});
 
+function toggleSidebar(){
+  const sb=document.getElementById('sidebar'),mn=document.getElementById('main-content'),ic=document.getElementById('sb-toggle-icon');
+  const collapsed=sb.classList.toggle('collapsed');
+  mn.classList.toggle('collapsed',collapsed);
+  ic.className='ti '+(collapsed?'ti-chevron-right':'ti-chevron-left');
+  localStorage.setItem('caisse_sidebar_collapsed',collapsed?'1':'0');
+}
+function restoreSidebarState(){
+  if(localStorage.getItem('caisse_sidebar_collapsed')==='1'){
+    document.getElementById('sidebar').classList.add('collapsed');
+    document.getElementById('main-content').classList.add('collapsed');
+    document.getElementById('sb-toggle-icon').className='ti ti-chevron-right';
+  }
+}
+
 function showToast(msg,ms=2200){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),ms)}
 
 function showTab(name,btn){
@@ -766,6 +795,7 @@ function populateSelects(){
   document.getElementById('filter-moyen').innerHTML='<option value="">Tous moyens</option>'+mo;
   document.getElementById('filter-cat').innerHTML='<option value="">Toutes catégories</option>'+co;
   document.getElementById('cat-evolution-sel').innerHTML=S.cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+  const ssEl=document.getElementById('sb-solde-sel');if(ssEl){ssEl.innerHTML='<option value="">Solde général</option>'+mo;if([...ssEl.options].some(o=>o.value===soldeSelView))ssEl.value=soldeSelView;else soldeSelView=''}
 }
 
 function getSoldes(){const s={};S.moyens.forEach(m=>s[m]=0);S.data.forEach(r=>{if(r.moyen){if(s[r.moyen]===undefined)s[r.moyen]=0;s[r.moyen]+=(r.credit||0)-(r.debit||0)}});return s}
@@ -796,9 +826,12 @@ function getFilteredData(){
 }
 function getPeriodLabel(){return{month:'ce mois',quarter:'ce trimestre',semester:'ce semestre',year:'cette année',all:'tout le temps'}[currentPeriod]||''}
 
+function changeSoldeView(v){soldeSelView=v;renderDashboard()}
+
 function renderDashboard(){
   const totalC=S.data.reduce((s,r)=>s+(r.credit||0),0);const totalD=S.data.reduce((s,r)=>s+(r.debit||0),0);const solde=totalC-totalD;
-  const sb=document.getElementById('sb-solde');sb.textContent=fmt(solde);sb.style.color=solde>=0?'var(--grn)':'var(--red)';
+  const soldesAll=getSoldes();const soldeAffiche=soldeSelView?(soldesAll[soldeSelView]||0):solde;
+  const sb=document.getElementById('sb-solde');sb.textContent=fmt(soldeAffiche);sb.style.color=amountsHidden?'var(--txt2)':(soldeAffiche>=0?'var(--grn)':'var(--red)');
   document.getElementById('dash-date').textContent=new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   const sc=calcScore();const circ=2*Math.PI*22;const dash=circ*sc.score/100;
   document.getElementById('score-badge').innerHTML=`<div class="score-ring"><svg width="56" height="56" viewBox="0 0 56 56"><circle cx="28" cy="28" r="22" fill="none" stroke="var(--bg3)" stroke-width="5"/><circle cx="28" cy="28" r="22" fill="none" stroke="${sc.color}" stroke-width="5" stroke-dasharray="${dash} ${circ}" stroke-linecap="round"/></svg><div class="score-num">${sc.score}</div></div><div class="score-info"><div class="score-title">Score de santé financière — ${sc.label}</div><div class="score-desc">Épargne ${sc.epargne}% · Régularité ${sc.regularite}% · Équilibre ${sc.equilibre}%</div><div class="score-bars"><div class="score-bar-item"><div class="score-bar-label">Épargne</div><div class="score-bar-track"><div class="score-bar-fill" style="width:${sc.ptsEpargne/40*100}%;background:var(--grn)"></div></div></div><div class="score-bar-item"><div class="score-bar-label">Régularité</div><div class="score-bar-track"><div class="score-bar-fill" style="width:${sc.ptsReg/30*100}%;background:var(--blu)"></div></div></div><div class="score-bar-item"><div class="score-bar-label">Équilibre</div><div class="score-bar-track"><div class="score-bar-fill" style="width:${sc.ptsEq/30*100}%;background:var(--pur)"></div></div></div></div></div>`;
@@ -949,7 +982,7 @@ function impParseDate(v){if(!v&&v!==0)return null;if(v instanceof Date)return im
 function impFmtDate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function impParseAmt(v){if(!v&&v!==0)return null;if(typeof v==='number')return Math.abs(v);const s=String(v).replace(/\s/g,'').replace(/[^\d,.\-\+]/g,'').replace(',','.');const n=parseFloat(s);return isNaN(n)?null:Math.abs(n)}
 function impIsNeg(v){const s=String(v).trim();return s.startsWith('-')||s.startsWith('(')}
-function impDoImport(){impClearLog(4);impMapped=[];const gi=id=>{const v=document.getElementById(id).value;return v===''?-1:parseInt(v)};const iDate=gi('im-date'),iDesig=gi('im-desig'),iDebit=gi('im-debit'),iCredit=gi('im-credit'),iMontant=gi('im-montant'),iSens=gi('im-sens'),iMoyen=gi('im-moyen'),iCat=gi('im-cat');const skipZero=document.getElementById('im-skip-zero').value==='1';const moyenDef=(document.getElementById('im-moyen-def').value||'').trim()||S.moyens[0]||'espèces';const sensD=(document.getElementById('im-sens-d').value||'').toLowerCase().trim();const sensC=(document.getElementById('im-sens-c').value||'').toLowerCase().trim();if(iDate<0){showToast('Sélectionne la colonne Date');return}if(iDesig<0){showToast('Sélectionne la colonne Désignation');return}if(iDebit<0&&iCredit<0&&iMontant<0){showToast('Sélectionne au moins une colonne montant');return}let ok=0,dateErr=0,amtErr=0;impRawRows.forEach((row,ri)=>{const dateStr=impParseDate(row[iDate]);if(!dateStr){dateErr++;return}const desig=String(row[iDesig]||'').trim();let debit=0,credit=0;if(iDebit>=0&&iCredit>=0){debit=impParseAmt(row[iDebit])||0;credit=impParseAmt(row[iCredit])||0}else if(iMontant>=0){const rawAmt=row[iMontant];const amt=impParseAmt(rawAmt)||0;if(iSens>=0){const sv=String(row[iSens]||'').toLowerCase().trim();if(sensD&&sv.includes(sensD))debit=amt;else if(sensC&&sv.includes(sensC))credit=amt;else{impIsNeg(rawAmt)?debit=amt:credit=amt}}else{impIsNeg(rawAmt)?debit=amt:credit=amt}}else if(iDebit>=0){debit=impParseAmt(row[iDebit])||0}else if(iCredit>=0){credit=impParseAmt(row[iCredit])||0}if(!debit&&!credit){amtErr++;return}if(skipZero&&!debit&&!credit)return;const moyenRaw=iMoyen>=0?String(row[iMoyen]||'').trim():'';const catRaw=iCat>=0?String(row[iCat]||'').trim():'';const moyen=S.moyens.includes(moyenRaw)?moyenRaw:(moyenRaw||moyenDef);const cat=S.cats.includes(catRaw)?catRaw:(S.cats.find(c=>catRaw.toLowerCase().includes(c.toLowerCase()))||catRaw);impMapped.push({id:Date.now().toString()+ri,date:dateStr,designation:desig||'—',debit,credit,moyen,categorie:cat});ok++});impLog(4,'Lues : <strong>'+impRawRows.length+'</strong>','info');impLog(4,'✓ Valides : <strong>'+ok+'</strong>','ok');if(dateErr)impLog(4,'⚠ Date invalide : '+dateErr,'warn');if(amtErr)impLog(4,'⚠ Montant absent : '+amtErr,'warn');const totalD=impMapped.reduce((s,r)=>s+(r.debit||0),0),totalC=impMapped.reduce((s,r)=>s+(r.credit||0),0);document.getElementById('imp-pills').innerHTML=`<div class="imp-pill b"><i class="ti ti-list"></i>${ok} tx</div><div class="imp-pill r"><i class="ti ti-arrow-up"></i>${fmt(totalD)}</div><div class="imp-pill g"><i class="ti ti-arrow-down"></i>${fmt(totalC)}</div>`;if(impMapped.length){document.getElementById('imp-result-card').style.display='block';document.getElementById('imp-result-count').textContent='('+impMapped.length+' lignes)';const rows=impMapped.slice(0,40).map(r=>`<tr><td style="color:var(--grn);font-size:12px;padding:5px 8px">${r.date}</td><td style="font-size:12px;padding:5px 8px">${r.designation.length>28?r.designation.substring(0,28)+'…':r.designation}</td><td style="text-align:right;color:var(--red);font-size:12px;padding:5px 8px">${r.debit?fmt(r.debit):''}</td><td style="text-align:right;color:var(--grn);font-size:12px;padding:5px 8px">${r.credit?fmt(r.credit):''}</td><td style="font-size:12px;padding:5px 8px">${r.moyen}</td><td style="font-size:12px;padding:5px 8px">${r.categorie||'-'}</td></tr>`).join('');document.getElementById('imp-result-table').innerHTML=`<table><thead><tr><th style="background:var(--bg2);position:sticky;top:0;padding:6px 8px;font-size:11px">Date</th><th style="background:var(--bg2);position:sticky;top:0;padding:6px 8px;font-size:11px">Désignation</th><th style="background:var(--bg2);position:sticky;top:0;padding:6px 8px;font-size:11px;text-align:right">Débit</th><th style="background:var(--bg2);position:sticky;top:0;padding:6px 8px;font-size:11px;text-align:right">Crédit</th><th style="background:var(--bg2);position:sticky;top:0;padding:6px 8px;font-size:11px">Moyen</th><th style="background:var(--bg2);position:sticky;top:0;padding:6px 8px;font-size:11px">Catégorie</th></tr></thead><tbody>${rows}</tbody></table>${impMapped.length>40?'<div style="padding:7px 12px;font-size:12px;color:var(--txt3)">…et '+(impMapped.length-40)+' autres</div>':''}`}impGoStep(4)}
+function impDoImport(){impClearLog(4);impMapped=[];const gi=id=>{const v=document.getElementById(id).value;return v===''?-1:parseInt(v)};const iDate=gi('im-date'),iDesig=gi('im-desig'),iDebit=gi('im-debit'),iCredit=gi('im-credit'),iMontant=gi('im-montant'),iSens=gi('im-sens'),iMoyen=gi('im-moyen'),iCat=gi('im-cat');const skipZero=document.getElementById('im-skip-zero').value==='1';const moyenDef=(document.getElementById('im-moyen-def').value||'').trim()||S.moyens[0]||'espèces';const sensD=(document.getElementById('im-sens-d').value||'').toLowerCase().trim();const sensC=(document.getElementById('im-sens-c').value||'').toLowerCase().trim();if(iDate<0){showToast('Sélectionne la colonne Date');return}if(iDesig<0){showToast('Sélectionne la colonne Désignation');return}if(iDebit<0&&iCredit<0&&iMontant<0){showToast('Sélectionne au moins une colonne montant');return}let ok=0,dateErr=0,amtErr=0;impRawRows.forEach((row,ri)=>{const dateStr=impParseDate(row[iDate]);if(!dateStr){dateErr++;return}const desig=String(row[iDesig]||'').trim();let debit=0,credit=0;if(iDebit>=0&&iCredit>=0){debit=impParseAmt(row[iDebit])||0;credit=impParseAmt(row[iCredit])||0}else if(iMontant>=0){const rawAmt=row[iMontant];const amt=impParseAmt(rawAmt)||0;if(iSens>=0){const sv=String(row[iSens]||'').toLowerCase().trim();if(sensD&&sv.includes(sensD))debit=amt;else if(sensC&&sv.includes(sensC))credit=amt;else{impIsNeg(rawAmt)?debit=amt:credit=amt}}else{impIsNeg(rawAmt)?debit=amt:credit=amt}}else if(iDebit>=0){debit=impParseAmt(row[iDebit])||0}else if(iCredit>=0){credit=impParseAmt(row[iCredit])||0}if(!debit&&!credit){amtErr++;return}if(skipZero&&!debit&&!credit)return;const moyenRaw=iMoyen>=0?String(row[iMoyen]||'').trim():'';const catRaw=iCat>=0?String(row[iCat]||'').trim():'';const moyen=S.moyens.includes(moyenRaw)?moyenRaw:(moyenRaw||moyenDef);const cat=S.cats.includes(catRaw)?catRaw:(S.cats.find(c=>catRaw.toLowerCase().includes(c.toLowerCase()))||'');impMapped.push({id:Date.now().toString()+ri,date:dateStr,designation:desig||'—',debit,credit,moyen,categorie:cat});ok++});impLog(4,'Lues : <strong>'+impRawRows.length+'</strong>','info');impLog(4,'✓ Valides : <strong>'+ok+'</strong>','ok');if(dateErr)impLog(4,'⚠ Date invalide : '+dateErr,'warn');if(amtErr)impLog(4,'⚠ Montant absent : '+amtErr,'warn');const totalD=impMapped.reduce((s,r)=>s+(r.debit||0),0),totalC=impMapped.reduce((s,r)=>s+(r.credit||0),0);document.getElementById('imp-pills').innerHTML=`<div class="imp-pill b"><i class="ti ti-list"></i>${ok} tx</div><div class="imp-pill r"><i class="ti ti-arrow-up"></i>${fmt(totalD)}</div><div class="imp-pill g"><i class="ti ti-arrow-down"></i>${fmt(totalC)}</div>`;if(impMapped.length){document.getElementById('imp-result-card').style.display='block';document.getElementById('imp-result-count').textContent='('+impMapped.length+' lignes)';const rows=impMapped.slice(0,40).map(r=>`<tr><td style="color:var(--grn);font-size:12px;padding:5px 8px">${r.date}</td><td style="font-size:12px;padding:5px 8px">${r.designation.length>28?r.designation.substring(0,28)+'…':r.designation}</td><td style="text-align:right;color:var(--red);font-size:12px;padding:5px 8px">${r.debit?fmt(r.debit):''}</td><td style="text-align:right;color:var(--grn);font-size:12px;padding:5px 8px">${r.credit?fmt(r.credit):''}</td><td style="font-size:12px;padding:5px 8px">${r.moyen}</td><td style="font-size:12px;padding:5px 8px">${r.categorie||'-'}</td></tr>`).join('');document.getElementById('imp-result-table').innerHTML=`<table><thead><tr><th style="background:var(--bg2);position:sticky;top:0;padding:6px 8px;font-size:11px">Date</th><th style="background:var(--bg2);position:sticky;top:0;padding:6px 8px;font-size:11px">Désignation</th><th style="background:var(--bg2);position:sticky;top:0;padding:6px 8px;font-size:11px;text-align:right">Débit</th><th style="background:var(--bg2);position:sticky;top:0;padding:6px 8px;font-size:11px;text-align:right">Crédit</th><th style="background:var(--bg2);position:sticky;top:0;padding:6px 8px;font-size:11px">Moyen</th><th style="background:var(--bg2);position:sticky;top:0;padding:6px 8px;font-size:11px">Catégorie</th></tr></thead><tbody>${rows}</tbody></table>${impMapped.length>40?'<div style="padding:7px 12px;font-size:12px;color:var(--txt3)">…et '+(impMapped.length-40)+' autres</div>':''}`}impGoStep(4)}
 function impConfirm(){if(!impMapped.length){showToast('Aucune donnée');return}const exSet=new Set(S.data.map(r=>r.date+'|'+r.designation+'|'+(r.debit||r.credit)));const newRows=impMapped.filter(r=>!exSet.has(r.date+'|'+r.designation+'|'+(r.debit||r.credit)));S.data=[...S.data,...newRows];const nM=[...new Set(newRows.map(r=>r.moyen).filter(m=>m&&!S.moyens.includes(m)))];const nC=[...new Set(newRows.map(r=>r.categorie).filter(c=>c&&!S.cats.includes(c)))];if(nM.length)S.moyens=[...S.moyens,...nM];if(nC.length)S.cats=[...S.cats,...nC];saveAll();populateSelects();impLog(4,'✓ <strong>'+newRows.length+'</strong> ajoutée(s)','ok');document.getElementById('imp-result-card').style.display='none';renderDashboard();renderStorageInfo();showToast(newRows.length+' importée(s) ✓',3000)}
 function exportImportCSV(){if(!impMapped.length)return;const hdr='Date,Désignation,Débit,Crédit,Moyen,Catégorie\n';const rows=impMapped.map(r=>[r.date,'"'+(r.designation||'').replace(/"/g,'""')+'"',r.debit||0,r.credit||0,r.moyen,r.categorie||''].join(',')).join('\n');const blob=new Blob(['\uFEFF'+hdr+rows],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='import_'+new Date().toISOString().slice(0,10)+'.csv';a.click()}
 function impReset(){impWB=null;impSheets={};impCurrentSheet=null;impRawRows=[];impColNames=[];impMapped=[];[1,2,4].forEach(p=>impClearLog(p));document.getElementById('imp-result-card').style.display='none';document.getElementById('imp-pills').innerHTML='';document.getElementById('imp-file').value='';impGoStep(1)}
@@ -958,6 +991,7 @@ function exportCSV(silent){const nom=(S.prefs.nom||'suivi').replace(/\s+/g,'_').
 function exportAndClear(){if(!S.data.length){showToast('Aucune donnée');return}if(!confirm('Export CSV puis suppression de '+S.data.length+' transaction(s) ?'))return;exportCSV(true);setTimeout(()=>{S.data=[];saveAll();renderDashboard();renderStorageInfo();showToast('Données exportées et vidées ✓')},600)}
 
 applyTheme();
+restoreSidebarState();
 </script>
 </body>
 </html>
