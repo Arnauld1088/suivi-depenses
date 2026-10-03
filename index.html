@@ -235,6 +235,14 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--bg2)}
 .bgt-scope{font-size:12px;background:var(--bg2);color:var(--txt1);border:.5px solid var(--brd2);border-radius:8px;padding:5px 8px;outline:none}
 .drill-row{display:grid;grid-template-columns:78px 1fr auto;gap:8px;padding:7px 0;border-bottom:.5px solid var(--brd);font-size:13px;align-items:center}
 .drill-row:last-child{border-bottom:none}
+/* ── ÉCHÉANCES (v11_07) ── */
+.ech-row{display:grid;grid-template-columns:54px 1fr auto auto;gap:10px;padding:9px 0;border-bottom:.5px solid var(--brd);font-size:13px;align-items:center}
+.ech-row:last-child{border-bottom:none}
+.ech-act{display:flex;gap:4px;align-items:center}
+.ech-act input,.ech-act select{font-size:13px;background:var(--bg2);color:var(--txt1);border:.5px solid var(--brd2);border-radius:8px;padding:6px 8px;outline:none;max-width:130px}
+.btn-mini{border:.5px solid var(--brd2);background:var(--bg2);color:var(--txt1);border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer}
+.btn-mini:hover{border-color:var(--blu);color:var(--blu)}
+@media(max-width:640px){.ech-row{grid-template-columns:48px 1fr auto;}.ech-row .ech-act{grid-column:1/-1;justify-content:flex-end}}
 </style>
 </head>
 <body data-theme="light">
@@ -291,6 +299,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--bg2)}
   <button class="ni" onclick="showTab('analyse',this)"><i class="ti ti-chart-pie"></i>Analyse & budget</button>
   <button class="ni" onclick="showTab('budget',this)"><i class="ti ti-target-arrow"></i>Budget<span class="bgt-badge" id="bgt-badge" style="display:none"></span></button>
   <button class="ni" onclick="showTab('epargne',this)"><i class="ti ti-pig-money"></i>Épargne</button>
+  <button class="ni" onclick="showTab('echeances',this)"><i class="ti ti-calendar-event"></i>Échéances<span class="bgt-badge" id="ech-badge" style="display:none"></span></button>
   <div class="sep"></div>
   <button class="ni" id="admin-btn" onclick="showTab('admin',this)" style="display:none;color:var(--blu)"><i class="ti ti-shield-check"></i>Vue Admin</button>
   <button class="ni" onclick="showTab('import',this)"><i class="ti ti-file-spreadsheet"></i>Import Excel</button>
@@ -462,6 +471,56 @@ tr:last-child td{border-bottom:none}tr:hover td{background:var(--bg2)}
     <div style="display:flex;gap:8px"><button class="btn btn-primary" onclick="epSubmitGoal()"><i class="ti ti-check"></i><span id="ep-submit-label">Créer l'objectif</span></button><button class="btn" id="ep-cancel-btn" style="display:none;background:var(--bg2);color:var(--txt1)" onclick="epCancelEdit()">Annuler</button></div>
   </div>
   <div style="font-size:11px;color:var(--txt3);line-height:1.7">Les versements se saisissent ici, sur chaque objectif. Pour qu'un versement sorte aussi d'un moyen de paiement, saisis-le dans le Journal : Nouvelle transaction → type « Virement » → « Vers un objectif d'épargne ». Il apparaît alors ici, sans être compté comme une dépense. Un versement saisi directement ici ne modifie pas tes soldes. Le versement mensuel prévu est déduit du « reste à vivre » dans l'onglet Budget.</div>
+</div>
+
+<!-- ÉCHÉANCES (v11_07) -->
+<div id="tab-echeances" class="section">
+  <div class="topbar"><div class="page-title">Échéances : récurrents &amp; dettes</div></div>
+  <div class="stat-grid" id="ech-stats"></div>
+  <div class="card">
+    <div class="card-title"><i class="ti ti-calendar-event"></i>À venir</div>
+    <div class="bgt-head" style="margin-bottom:.5rem"><div class="bgt-month"><button onclick="echShift(-1)"><i class="ti ti-chevron-left"></i></button><span id="ech-month-label">—</span><button onclick="echShift(1)"><i class="ti ti-chevron-right"></i></button></div></div>
+    <div id="ech-upcoming"></div>
+    <div id="ech-foot" style="font-size:12px;color:var(--txt2);margin-top:10px;line-height:1.7"></div>
+  </div>
+  <div class="card">
+    <div class="card-title"><i class="ti ti-repeat"></i>Récurrents (loyer, abonnements, salaire…)</div>
+    <div id="ech-rec-list"></div>
+    <div style="border-top:.5px solid var(--brd);margin-top:12px;padding-top:12px">
+      <div style="font-size:12px;font-weight:600;margin-bottom:8px" id="ech-r-title">Nouveau récurrent</div>
+      <input type="hidden" id="ech-r-edit">
+      <div class="fg2">
+        <div class="fg"><label>Nom</label><input type="text" id="ech-r-nom" placeholder="Ex : Loyer, Netflix, Salaire…"></div>
+        <div class="fg"><label>Type</label><select id="ech-r-type"><option value="debit">Dépense</option><option value="credit">Revenu</option></select></div>
+        <div class="fg"><label>Montant</label><input type="number" id="ech-r-montant" min="0" step="1" placeholder="0"></div>
+        <div class="fg"><label>Jour du mois</label><input type="number" id="ech-r-jour" min="1" max="31" step="1" placeholder="5"></div>
+        <div class="fg"><label>Catégorie</label><select id="ech-r-cat"></select></div>
+        <div class="fg"><label>Moyen</label><select id="ech-r-moyen"></select></div>
+        <div class="fg"><label>À partir de (mois, facultatif)</label><input type="month" id="ech-r-debut"></div>
+        <div class="fg"><label>Jusqu'à (mois, facultatif)</label><input type="month" id="ech-r-fin"></div>
+      </div>
+      <div style="display:flex;gap:8px"><button class="btn btn-primary" onclick="echSubmitRec()"><i class="ti ti-check"></i><span id="ech-r-submit">Ajouter</span></button><button class="btn" id="ech-r-cancel" style="display:none;background:var(--bg2);color:var(--txt1)" onclick="echCancelRec()">Annuler</button></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title"><i class="ti ti-scale"></i>Dettes &amp; créances</div>
+    <div id="ech-dettes" class="ep-grid" style="margin-bottom:0"></div>
+    <div style="border-top:.5px solid var(--brd);margin-top:12px;padding-top:12px">
+      <div style="font-size:12px;font-weight:600;margin-bottom:8px" id="ech-d-title">Nouvelle dette ou créance</div>
+      <input type="hidden" id="ech-d-edit">
+      <div class="fg2">
+        <div class="fg"><label>Nom (créancier / débiteur)</label><input type="text" id="ech-d-nom" placeholder="Ex : Banque, Ami…"></div>
+        <div class="fg"><label>Sens</label><select id="ech-d-sens"><option value="dois">Je dois</option><option value="du">On me doit</option></select></div>
+        <div class="fg"><label>Montant initial</label><input type="number" id="ech-d-montant" min="0" step="1" placeholder="0"></div>
+        <div class="fg"><label>Déjà remboursé (facultatif)</label><input type="number" id="ech-d-deja" min="0" step="1" placeholder="0"></div>
+        <div class="fg"><label>Mensualité (facultatif)</label><input type="number" id="ech-d-mensualite" min="0" step="1" placeholder="0"></div>
+        <div class="fg"><label>Jour de la mensualité</label><input type="number" id="ech-d-jour" min="1" max="31" step="1" placeholder="5"></div>
+        <div class="fg"><label>Échéance finale (facultatif)</label><input type="date" id="ech-d-echeance"></div>
+      </div>
+      <div style="display:flex;gap:8px"><button class="btn btn-primary" onclick="echSubmitDette()"><i class="ti ti-check"></i><span id="ech-d-submit">Ajouter</span></button><button class="btn" id="ech-d-cancel" style="display:none;background:var(--bg2);color:var(--txt1)" onclick="echCancelDette()">Annuler</button></div>
+    </div>
+  </div>
+  <div style="font-size:11px;color:var(--txt3);line-height:1.7">« Enregistrer » crée la transaction dans le Journal (une échéance déjà saisie à la main, même montant et même catégorie dans le mois, est reconnue comme payée). Le remboursement d'une dette est une dépense (catégorie « Dettes ») ; celui d'une créance reçue est un encaissement hors revenus. Les mensualités de dettes apparaissent automatiquement dans « À venir » et dans l'onglet Budget.</div>
 </div>
 
 <!-- ADMIN -->
@@ -906,7 +965,7 @@ function showTab(name,btn){
   document.querySelectorAll('.ni').forEach(b=>b.classList.remove('active'));
   document.getElementById('tab-'+name).classList.add('active');
   if(btn)btn.classList.add('active');
-  const renders={dashboard:renderDashboard,journal:renderJournal,recap:renderRecap,tendance:renderTendance,analyse:renderAnalyse,budget:renderBudget,epargne:renderEpargne,import:renderStorageInfo,params:renderParams,admin:renderAdmin};
+  const renders={dashboard:renderDashboard,journal:renderJournal,recap:renderRecap,tendance:renderTendance,analyse:renderAnalyse,budget:renderBudget,epargne:renderEpargne,echeances:renderEcheances,import:renderStorageInfo,params:renderParams,admin:renderAdmin};
   renders[name]?.();
 }
 
@@ -1127,8 +1186,9 @@ function computeBudget(key){
   const depTotal=lines.reduce((t,l)=>t+l.dep,0);
   const fixes=lines.filter(l=>l.fixe).reduce((t,l)=>t+Math.max(l.eff,l.dep),0);
   const variableDone=lines.filter(l=>!l.fixe).reduce((t,l)=>t+l.dep,0);
+  const aVenir=echItems(key).filter(i=>!i.paid&&i.type==='debit').reduce((t,i)=>t+i.montant,0);
   const epPrevu=epPlannedMonth(),epVerse=epPaidMonth(key),epDeduit=Math.max(epPrevu,epVerse);
-  return{lines,revenus,frais,budgetTotal,depBudgeted,depTotal,fixes,epPrevu,epVerse,resteAVivre:revenus-fixes-epDeduit-variableDone,resteBudget:budgetTotal-depBudgeted};
+  return{lines,revenus,frais,aVenir,budgetTotal,depBudgeted,depTotal,fixes,epPrevu,epVerse,resteAVivre:revenus-fixes-epDeduit-variableDone,resteBudget:budgetTotal-depBudgeted};
 }
 function bgtColor(pct){return pct>100?'var(--red)':pct>=80?'var(--amb)':'var(--grn)'}
 let bgtScope='all';
@@ -1158,6 +1218,7 @@ function renderBudget(){
     `<div class="stat"><div class="stat-label">Budget alloué</div><div class="stat-value">${fmt(b.budgetTotal)}</div></div>`+
     `<div class="stat"><div class="stat-label">Dépensé</div><div class="stat-value r">${fmt(b.depTotal)}</div></div>`+
     `<div class="stat"><div class="stat-label">Reste sur budget</div><div class="stat-value" style="color:${b.resteBudget>=0?'var(--grn)':'var(--red)'}">${fmt(b.resteBudget)}</div></div>`+
+    (b.aVenir>0?`<div class="stat"><div class="stat-label">Échéances à venir</div><div class="stat-value r">${fmt(b.aVenir)}</div></div>`:'')+
     (b.frais>0?`<div class="stat"><div class="stat-label">Frais de transaction</div><div class="stat-value r">${fmt(b.frais)}</div></div>`:'')+
     (S.epargne&&S.epargne.length?`<div class="stat"><div class="stat-label">Épargne du mois</div><div class="stat-value">${fmt(b.epVerse)} <span style="font-size:12px;color:var(--txt3);font-weight:400">/ ${fmt(b.epPrevu)}</span></div></div>`:'')+
     `<div class="stat"><div class="stat-label">Reste à vivre</div><div class="stat-value" style="color:${rv>=0?'var(--grn)':'var(--red)'}">${fmt(rv)}</div></div>`;
@@ -1433,7 +1494,7 @@ function saveVirement(){
 function virDelete(vid){
   if(!confirm('Supprimer ce virement (toutes ses lignes, ses frais et le versement d\'épargne lié le cas échéant) ?'))return;
   const vids=new Set(S.data.filter(r=>r.vir===vid).map(r=>r.id));
-  S.data=S.data.filter(r=>r.vir!==vid&&!vids.has(r.fraisDe));
+  S.data=S.data.filter(r=>r.vir!==vid&&!vids.has(r.fraisDe));echCleanupOrphans();
   (S.epargne||[]).forEach(o=>{o.versements=(o.versements||[]).filter(v=>v.vir!==vid)});
   saveAll();showToast('Virement supprimé');renderJournal();renderDashboard();
 }
@@ -1541,6 +1602,216 @@ function fraisSync(pid,p,type){
   }else if(ex){S.data=S.data.filter(r=>r.id!==ex.id)}
 }
 
+/* ── ÉCHÉANCES : RÉCURRENTS & DETTES (v11_07) ── */
+let echMonth=new Date().toISOString().substring(0,7),echOpen={};
+function echEnsure(){S.recurrents=S.recurrents||[];S.dettes=S.dettes||[]}
+function echToday(){return new Date().toISOString().substring(0,10)}
+function echDayDate(key,jour){const[y,m]=key.split('-').map(Number);const last=new Date(y,m,0).getDate();return key+'-'+String(Math.min(Math.max(1,parseInt(jour)||1),last)).padStart(2,'0')}
+function detteReste(d){return Math.max(0,(d.montant||0)-(d.deja||0)-(d.paiements||[]).reduce((t,p)=>t+p.montant,0))}
+function echDetteCat(){const c='Dettes';if(!S.cats.includes(c))S.cats.push(c);return c}
+function echItems(key){
+  echEnsure();
+  const items=[],used=new Set(),today=echToday();
+  const rows=S.data.filter(r=>r.date&&r.date.startsWith(key)&&!r.fraisDe&&!(r.designation||'').startsWith('Correction de solde'));
+  S.recurrents.filter(r=>r.actif!==false&&(!r.debut||r.debut<=key)&&(!r.fin||r.fin>=key)).forEach(r=>{
+    const date=echDayDate(key,r.jour);
+    let m=rows.find(x=>x.rec===r.id&&!used.has(x.id));
+    if(!m)m=rows.find(x=>!used.has(x.id)&&!x.rec&&!x.vir&&(r.type==='credit'?x.credit:x.debit)===r.montant&&(r.categorie?(x.categorie||'')===r.categorie:(x.designation||'').toLowerCase()===(r.nom||'').toLowerCase()));
+    if(m)used.add(m.id);
+    items.push({kind:'rec',id:r.id,nom:r.nom,montant:r.montant,type:r.type==='credit'?'credit':'debit',date,categorie:r.categorie||'',moyen:r.moyen||'',paid:!!m});
+  });
+  S.dettes.filter(d=>d.sens==='dois'&&d.mensualite>0).forEach(d=>{
+    const paid=(d.paiements||[]).some(p=>p.date&&p.date.startsWith(key));
+    const reste=detteReste(d);
+    if(!paid&&reste<=0)return;
+    items.push({kind:'dette',id:d.id,nom:'Remboursement — '+d.nom,montant:paid?d.mensualite:Math.min(d.mensualite,reste),type:'debit',date:echDayDate(key,d.jour),categorie:'Dettes',moyen:'',paid});
+  });
+  items.forEach(i=>{i.late=!i.paid&&i.date<today});
+  return items.sort((a,b)=>a.date<b.date?-1:1);
+}
+function echShift(d){echMonth=monthKeyShift(echMonth,d);renderEcheances()}
+function echRecord(kind,id){
+  const it=echItems(echMonth).find(i=>i.kind===kind&&i.id===id);if(!it||it.paid)return;
+  if(echMonth>epNowKey()){showToast('Échéance à venir : enregistre-la à partir du mois concerné');return}
+  const t=echToday(),date=it.date>t?t:it.date;
+  if(kind==='rec'){
+    const r=S.recurrents.find(x=>x.id===id);
+    S.data.push({id:Date.now()+'r',date,designation:r.nom,debit:r.type==='credit'?0:r.montant,credit:r.type==='credit'?r.montant:0,moyen:r.moyen||S.moyens[0]||'',categorie:r.categorie||'',rec:r.id});
+    saveAll();showToast('Échéance enregistrée ✓');
+  }else{
+    if(!echRepay(id,it.montant,S.moyens[0]||'',date))return;
+    saveAll();showToast('Mensualité enregistrée ✓');
+  }
+  populateSelects();renderDashboard();renderEcheances();
+}
+function echRepay(did,amount,moyen,date){
+  const d=S.dettes.find(x=>x.id===did);if(!d)return false;
+  const a=parseFloat(amount);
+  if(isNaN(a)||a<=0){showToast('Saisis un montant');return false}
+  if(a>detteReste(d)+0.001){showToast('Montant supérieur au reste ('+fmt(detteReste(d))+')');return false}
+  const mv=moyen||S.moyens[0]||'',dt=date||echToday(),t=Date.now();
+  const row=d.sens==='dois'
+    ?{id:t+'d',date:dt,designation:'Remboursement — '+d.nom,debit:a,credit:0,moyen:mv,categorie:echDetteCat(),dette:did}
+    :{id:t+'d',date:dt,designation:'Remboursement reçu — '+d.nom,debit:0,credit:a,moyen:mv,categorie:'',dette:did,vir:'vir-'+t};
+  S.data.push(row);
+  d.paiements=d.paiements||[];d.paiements.push({id:'p-'+t,date:dt,montant:a,txId:row.id});
+  return true;
+}
+function echCleanupOrphans(){ // un remboursement dont la transaction a été supprimée disparaît de l'historique de la dette
+  const ids=new Set(S.data.map(r=>r.id));
+  (S.dettes||[]).forEach(d=>{d.paiements=(d.paiements||[]).filter(p=>!p.txId||ids.has(p.txId))});
+}
+function updateEchBadge(){
+  const el=document.getElementById('ech-badge');if(!el)return;
+  const t=new Date(),lim=new Date(t.getTime()+3*86400000).toISOString().substring(0,10);
+  const n=echItems(epNowKey()).filter(i=>!i.paid&&i.date<=lim).length;
+  el.style.display=n?'inline':'none';el.textContent=n||'';
+}
+(function(){const _rd=renderDashboard;renderDashboard=function(){const r=_rd.apply(this,arguments);try{updateEchBadge()}catch(e){}return r}})();
+
+function renderEcheances(){
+  echEnsure();
+  document.getElementById('ech-month-label').textContent=monthLabel(echMonth);
+  const items=echItems(echMonth),debs=items.filter(i=>i.type==='debit');
+  const prevu=debs.reduce((t,i)=>t+i.montant,0),paye=debs.filter(i=>i.paid).reduce((t,i)=>t+i.montant,0);
+  const dois=S.dettes.filter(d=>d.sens==='dois').reduce((t,d)=>t+detteReste(d),0);
+  const du=S.dettes.filter(d=>d.sens==='du').reduce((t,d)=>t+detteReste(d),0);
+  document.getElementById('ech-stats').innerHTML=
+    `<div class="stat"><div class="stat-label">Dépenses prévues</div><div class="stat-value">${fmt(prevu)}</div></div>`+
+    `<div class="stat"><div class="stat-label">Déjà payées</div><div class="stat-value g">${fmt(paye)}</div></div>`+
+    `<div class="stat"><div class="stat-label">Reste à payer</div><div class="stat-value r">${fmt(prevu-paye)}</div></div>`+
+    `<div class="stat"><div class="stat-label">Je dois</div><div class="stat-value r">${fmt(dois)}</div></div>`+
+    `<div class="stat"><div class="stat-label">On me doit</div><div class="stat-value g">${fmt(du)}</div></div>`;
+  const canRec=echMonth<=epNowKey();
+  document.getElementById('ech-upcoming').innerHTML=items.length?items.map(i=>{
+    const st=i.paid?'<span class="badge" style="color:var(--grn)">Payé ✓</span>':i.late?'<span class="badge" style="color:var(--red)">En retard</span>':'<span class="badge">À venir</span>';
+    return`<div class="ech-row"><span style="color:var(--txt3);font-size:12px">${i.date.substring(8)}/${i.date.substring(5,7)}</span>
+      <span style="min-width:0"><span style="font-weight:500">${escA(i.nom)}</span>${i.categorie?` <span style="color:var(--txt3);font-size:11px">${escA(i.categorie)}</span>`:''}${i.kind==='dette'?' <span class="badge">dette</span>':''}</span>
+      <span style="font-weight:600;color:${i.type==='credit'?'var(--grn)':'var(--red)'}">${i.type==='credit'?'+':'−'}${fmt(i.montant)}</span>
+      <span class="ech-act">${st}${!i.paid&&canRec?`<button class="btn-mini" data-k="${i.kind}" data-id="${escA(i.id)}" onclick="echRecord(this.dataset.k,this.dataset.id)">Enregistrer</button>`:''}</span></div>`;
+  }).join(''):'<div style="padding:1.2rem;text-align:center;color:var(--txt3);font-size:13px">Aucune échéance ce mois-ci — ajoute un récurrent ou une dette avec mensualité ci-dessous.</div>';
+  let foot='';
+  if(echMonth===epNowKey()){
+    const so=getSoldes(),dispo=S.moyens.filter(m=>moyenType(m)!=='epargne').reduce((t,m)=>t+(so[m]||0),0);
+    const apres=dispo+items.filter(i=>!i.paid&&i.type==='credit').reduce((t,i)=>t+i.montant,0)-items.filter(i=>!i.paid&&i.type==='debit').reduce((t,i)=>t+i.montant,0);
+    foot=`Disponible actuel : <strong>${fmt(dispo)}</strong> → après les échéances restantes : <strong style="color:${apres>=0?'var(--grn)':'var(--red)'}">${fmt(apres)}</strong>`;
+  }
+  document.getElementById('ech-foot').innerHTML=foot;
+  // Récurrents
+  document.getElementById('ech-rec-list').innerHTML=S.recurrents.length?S.recurrents.map(r=>{
+    const actif=r.actif!==false,id=escA(r.id);
+    return`<div class="ech-row" style="grid-template-columns:54px 1fr auto auto;${actif?'':'opacity:.55'}"><span style="color:var(--txt3);font-size:12px">le ${r.jour||1}</span>
+      <span style="min-width:0"><span style="font-weight:500">${escA(r.nom)}</span> <span style="color:var(--txt3);font-size:11px">${escA(r.categorie||'')}${r.moyen?' · '+escA(r.moyen):''}${r.debut?' · dès '+r.debut:''}${r.fin?' · jusqu\'à '+r.fin:''}</span></span>
+      <span style="font-weight:600;color:${r.type==='credit'?'var(--grn)':'var(--red)'}">${r.type==='credit'?'+':'−'}${fmt(r.montant)}</span>
+      <span class="ech-act"><button class="btn-mini" data-id="${id}" onclick="echToggleRec(this.dataset.id)">${actif?'Pause':'Réactiver'}</button><button class="btn-mini" data-id="${id}" onclick="echEditRec(this.dataset.id)"><i class="ti ti-pencil"></i></button><button class="btn-mini" data-id="${id}" onclick="echDeleteRec(this.dataset.id)"><i class="ti ti-trash"></i></button></span></div>`;
+  }).join(''):'<div style="padding:.8rem 0;color:var(--txt3);font-size:13px">Aucun récurrent pour l\'instant.</div>';
+  echFillSelects();
+  // Dettes
+  document.getElementById('ech-dettes').innerHTML=S.dettes.length?S.dettes.map(d=>{
+    const id=escA(d.id),reste=detteReste(d),paye=(d.montant||0)-reste,pct=d.montant?Math.min(100,paye/d.montant*100):0,done=reste<=0;
+    const eta=(d.mensualite>0&&!done)?monthLabel(monthKeyShift(epNowKey(),Math.ceil(reste/d.mensualite))):'—';
+    const hist=(d.paiements||[]).slice().sort((a,b)=>b.date>a.date?1:-1);
+    const dois=d.sens==='dois';
+    return`<div class="card" style="margin-bottom:0">
+      <div class="ep-top"><div><div class="ep-name">${escA(d.nom)} <span class="badge">${dois?'Je dois':'On me doit'}</span></div><div class="ep-sub">${d.mensualite?fmt(d.mensualite)+' / mois le '+(d.jour||1):'Sans mensualité'}${d.echeance?' · échéance '+fmtDateEp(d.echeance):''}</div></div>
+        <div><button class="ep-ic" data-id="${id}" onclick="echEditDette(this.dataset.id)"><i class="ti ti-pencil"></i></button><button class="ep-ic" data-id="${id}" onclick="echDeleteDette(this.dataset.id)"><i class="ti ti-trash"></i></button></div></div>
+      <div class="ep-amt"><span>Reste <strong>${fmt(reste)}</strong> <span style="color:var(--txt3)">/ ${fmt(d.montant||0)}</span></span><span style="color:${done?'var(--grn)':'var(--txt2)'}">${done?'Soldé 🎉':Math.round(pct)+' %'}</span></div>
+      <div class="ep-bar"><div style="width:${pct}%"></div></div>
+      <div class="ep-meta"><div><small>${dois?'Remboursé':'Reçu'}</small><b>${fmt(paye)}</b></div><div><small>Soldé vers</small><b>${eta}</b></div></div>
+      ${done?'':`<div class="ech-act" style="flex-wrap:wrap"><input type="number" id="ech-pay-${id}" min="0" step="1" placeholder="Montant"><select id="ech-paym-${id}">${S.moyens.map(m=>`<option value="${escA(m)}">${escA(m)}</option>`).join('')}</select><button class="btn btn-primary" data-id="${id}" onclick="echPayDette(this.dataset.id)">${dois?'Rembourser':'Encaisser'}</button><button class="ep-ic" style="margin-left:auto" data-id="${id}" onclick="echToggleHist(this.dataset.id)"><i class="ti ti-history"></i></button></div>`}
+      ${(echOpen[d.id]||done)&&hist.length?`<div class="ep-hist">${hist.map(p=>`<div><span>${fmtDateEp(p.date)}</span><span style="color:${dois?'var(--red)':'var(--grn)'}">${fmt(p.montant)}</span><button class="ep-ic" data-d="${id}" data-p="${escA(p.id)}" onclick="echDeletePay(this.dataset.d,this.dataset.p)"><i class="ti ti-x"></i></button></div>`).join('')}</div>`:''}
+    </div>`;
+  }).join(''):'<div style="grid-column:1/-1;padding:.8rem 0;color:var(--txt3);font-size:13px">Aucune dette ou créance.</div>';
+  updateEchBadge();
+}
+function echFillSelects(){
+  const c=document.getElementById('ech-r-cat'),m=document.getElementById('ech-r-moyen');
+  const cv=c.value,mv=m.value;
+  c.innerHTML='<option value="">— Aucune —</option>'+S.cats.map(x=>`<option value="${escA(x)}">${escA(x)}</option>`).join('');
+  m.innerHTML=S.moyens.map(x=>`<option value="${escA(x)}">${escA(x)}</option>`).join('');
+  c.value=cv;if(mv)m.value=mv;
+}
+function echToggleHist(id){echOpen[id]=!echOpen[id];renderEcheances()}
+// -- Récurrents --
+function echSubmitRec(){
+  echEnsure();
+  const nom=document.getElementById('ech-r-nom').value.trim(),montant=parseFloat(document.getElementById('ech-r-montant').value);
+  const jour=parseInt(document.getElementById('ech-r-jour').value);
+  if(!nom||isNaN(montant)||montant<=0||isNaN(jour)||jour<1||jour>31){showToast('Renseigne nom, montant et jour (1–31)');return}
+  const o={nom,type:document.getElementById('ech-r-type').value,montant,jour,categorie:document.getElementById('ech-r-cat').value,moyen:document.getElementById('ech-r-moyen').value,debut:document.getElementById('ech-r-debut').value,fin:document.getElementById('ech-r-fin').value};
+  const eid=document.getElementById('ech-r-edit').value;
+  if(eid){const r=S.recurrents.find(x=>x.id===eid);if(r)Object.assign(r,o);showToast('Récurrent modifié ✓')}
+  else{S.recurrents.push({id:'rec-'+Date.now(),actif:true,...o});showToast('Récurrent ajouté ✓')}
+  echCancelRec();saveAll();renderEcheances();renderDashboard();
+}
+function echEditRec(id){
+  const r=S.recurrents.find(x=>x.id===id);if(!r)return;
+  document.getElementById('ech-r-edit').value=r.id;
+  document.getElementById('ech-r-nom').value=r.nom;document.getElementById('ech-r-type').value=r.type||'debit';
+  document.getElementById('ech-r-montant').value=r.montant;document.getElementById('ech-r-jour').value=r.jour||1;
+  document.getElementById('ech-r-cat').value=r.categorie||'';document.getElementById('ech-r-moyen').value=r.moyen||'';
+  document.getElementById('ech-r-debut').value=r.debut||'';document.getElementById('ech-r-fin').value=r.fin||'';
+  document.getElementById('ech-r-title').textContent='Modifier le récurrent';document.getElementById('ech-r-submit').textContent='Enregistrer';
+  document.getElementById('ech-r-cancel').style.display='';
+  document.getElementById('ech-r-nom').scrollIntoView({behavior:'smooth',block:'center'});
+}
+function echCancelRec(){
+  ['ech-r-edit','ech-r-nom','ech-r-montant','ech-r-jour','ech-r-debut','ech-r-fin'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('ech-r-title').textContent='Nouveau récurrent';document.getElementById('ech-r-submit').textContent='Ajouter';
+  document.getElementById('ech-r-cancel').style.display='none';
+}
+function echToggleRec(id){const r=S.recurrents.find(x=>x.id===id);if(!r)return;r.actif=r.actif===false;saveAll();renderEcheances();renderDashboard()}
+function echDeleteRec(id){
+  const r=S.recurrents.find(x=>x.id===id);if(!r)return;
+  if(!confirm('Supprimer le récurrent « '+r.nom+' » ? Les transactions déjà enregistrées restent dans le Journal.'))return;
+  S.recurrents=S.recurrents.filter(x=>x.id!==id);saveAll();renderEcheances();renderDashboard();
+}
+// -- Dettes --
+function echSubmitDette(){
+  echEnsure();
+  const nom=document.getElementById('ech-d-nom').value.trim(),montant=parseFloat(document.getElementById('ech-d-montant').value);
+  if(!nom||isNaN(montant)||montant<=0){showToast('Renseigne un nom et un montant');return}
+  const o={nom,sens:document.getElementById('ech-d-sens').value,montant,deja:parseFloat(document.getElementById('ech-d-deja').value)||0,mensualite:parseFloat(document.getElementById('ech-d-mensualite').value)||0,jour:parseInt(document.getElementById('ech-d-jour').value)||1,echeance:document.getElementById('ech-d-echeance').value};
+  const eid=document.getElementById('ech-d-edit').value;
+  if(eid){const d=S.dettes.find(x=>x.id===eid);if(d)Object.assign(d,o);showToast('Modifié ✓')}
+  else{S.dettes.push({id:'det-'+Date.now(),paiements:[],...o});showToast('Ajouté ✓')}
+  echCancelDette();saveAll();renderEcheances();renderDashboard();
+}
+function echEditDette(id){
+  const d=S.dettes.find(x=>x.id===id);if(!d)return;
+  document.getElementById('ech-d-edit').value=d.id;
+  document.getElementById('ech-d-nom').value=d.nom;document.getElementById('ech-d-sens').value=d.sens;
+  document.getElementById('ech-d-montant').value=d.montant;document.getElementById('ech-d-deja').value=d.deja||'';
+  document.getElementById('ech-d-mensualite').value=d.mensualite||'';document.getElementById('ech-d-jour').value=d.jour||'';
+  document.getElementById('ech-d-echeance').value=d.echeance||'';
+  document.getElementById('ech-d-title').textContent='Modifier';document.getElementById('ech-d-submit').textContent='Enregistrer';
+  document.getElementById('ech-d-cancel').style.display='';
+  document.getElementById('ech-d-nom').scrollIntoView({behavior:'smooth',block:'center'});
+}
+function echCancelDette(){
+  ['ech-d-edit','ech-d-nom','ech-d-montant','ech-d-deja','ech-d-mensualite','ech-d-jour','ech-d-echeance'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('ech-d-title').textContent='Nouvelle dette ou créance';document.getElementById('ech-d-submit').textContent='Ajouter';
+  document.getElementById('ech-d-cancel').style.display='none';
+}
+function echDeleteDette(id){
+  const d=S.dettes.find(x=>x.id===id);if(!d)return;
+  if(!confirm('Supprimer « '+d.nom+' » ? Les transactions de remboursement déjà enregistrées restent dans le Journal.'))return;
+  S.dettes=S.dettes.filter(x=>x.id!==id);saveAll();renderEcheances();renderDashboard();
+}
+function echPayDette(id){
+  const amt=document.getElementById('ech-pay-'+id).value,mv=document.getElementById('ech-paym-'+id).value;
+  if(!echRepay(id,amt,mv))return;
+  saveAll();populateSelects();renderDashboard();renderEcheances();showToast('Enregistré ✓');
+}
+function echDeletePay(did,pid){
+  const d=S.dettes.find(x=>x.id===did);if(!d)return;
+  const p=(d.paiements||[]).find(x=>x.id===pid);if(!p)return;
+  if(!confirm('Supprimer ce paiement (et sa transaction dans le Journal) ?'))return;
+  S.data=S.data.filter(r=>r.id!==p.txId);
+  d.paiements=d.paiements.filter(x=>x.id!==pid);
+  saveAll();renderDashboard();renderEcheances();
+}
+
 function renderParams(){
   document.getElementById('pref-nom').value=S.prefs.nom||'';document.getElementById('pref-annee').value=S.prefs.annee||'2026';document.getElementById('pref-devise').value=S.prefs.devise||'F';
   document.getElementById('moyens-list').innerHTML=S.moyens.map(m=>`<div class="tag">${m}<select onchange="setMoyenType(this.dataset.m,this.value)" data-m="${escA(m)}" title="Type de moyen"><option value="courant"${moyenType(m)==='courant'?' selected':''}>Courant</option><option value="epargne"${moyenType(m)==='epargne'?' selected':''}>Épargne</option><option value="cash"${moyenType(m)==='cash'?' selected':''}>Cash</option></select><button onclick="removeMoyen('${m}')"><i class="ti ti-x" style="font-size:11px"></i></button></div>`).join('');
@@ -1558,8 +1829,8 @@ function appliquerCorrections(){const soldes=getSoldes();let nb=0;S.moyens.forEa
 
 function openForm(id){if(id){const r0=S.data.find(r=>r.id===id);if(r0&&r0.vir){showToast('Virement : supprime-le et recrée-le, ou détache-le');return}if(r0&&r0.fraisDe){showToast('Les frais se modifient depuis la transaction principale');return}}editId=id||null;const row=id?S.data.find(r=>r.id===id):null;document.getElementById('modal-title').textContent=id?'Modifier':'Nouvelle transaction';document.getElementById('f-date').value=row?.date||new Date().toISOString().split('T')[0];document.getElementById('f-type').value=(row?.credit&&!row?.debit)?'credit':'debit';document.getElementById('f-designation').value=row?.designation||'';document.getElementById('f-montant').value=row?(row.debit||row.credit):'';document.getElementById('f-moyen').value=row?.moyen||S.moyens[0];document.getElementById('f-cat').value=row?.categorie||'';virInitForm();fraisInitForm(id,row);document.getElementById('overlay').classList.add('open')}
 function closeForm(){document.getElementById('overlay').classList.remove('open');editId=null}
-function saveTransaction(){if(document.getElementById('f-type').value==='vir'){return saveVirement()}const date=document.getElementById('f-date').value,type=document.getElementById('f-type').value,desig=document.getElementById('f-designation').value.trim(),amt=parseFloat(document.getElementById('f-montant').value),moyen=document.getElementById('f-moyen').value,cat=document.getElementById('f-cat').value;if(!date||!desig||!amt||amt<=0){alert('Remplis tous les champs.');return}const row={id:editId||Date.now().toString(),date,designation:desig,debit:type==='debit'?amt:0,credit:type==='credit'?amt:0,moyen,categorie:cat};if(editId)S.data=S.data.map(r=>r.id===editId?row:r);else S.data.push(row);fraisSync(row.id,row,type);saveAll();populateSelects();closeForm();showToast(editId?'Modifiée ✓':'Ajoutée ✓');renderDashboard();if(document.getElementById('tab-journal').classList.contains('active'))renderJournal()}
-function deleteRow(id){const r0=S.data.find(r=>r.id===id);if(r0&&r0.vir)return virDelete(r0.vir);if(!confirm(S.data.some(r=>r.fraisDe===id)?'Supprimer (ses frais aussi) ?':'Supprimer ?'))return;S.data=S.data.filter(r=>r.id!==id&&r.fraisDe!==id);saveAll();showToast('Supprimée');renderJournal();renderDashboard()}
+function saveTransaction(){if(document.getElementById('f-type').value==='vir'){return saveVirement()}const date=document.getElementById('f-date').value,type=document.getElementById('f-type').value,desig=document.getElementById('f-designation').value.trim(),amt=parseFloat(document.getElementById('f-montant').value),moyen=document.getElementById('f-moyen').value,cat=document.getElementById('f-cat').value;if(!date||!desig||!amt||amt<=0){alert('Remplis tous les champs.');return}const row={id:editId||Date.now().toString(),date,designation:desig,debit:type==='debit'?amt:0,credit:type==='credit'?amt:0,moyen,categorie:cat};if(editId){const o0=S.data.find(r=>r.id===editId);if(o0&&o0.rec)row.rec=o0.rec}if(editId)S.data=S.data.map(r=>r.id===editId?row:r);else S.data.push(row);fraisSync(row.id,row,type);saveAll();populateSelects();closeForm();showToast(editId?'Modifiée ✓':'Ajoutée ✓');renderDashboard();if(document.getElementById('tab-journal').classList.contains('active'))renderJournal()}
+function deleteRow(id){const r0=S.data.find(r=>r.id===id);if(r0&&r0.vir)return virDelete(r0.vir);if(!confirm(S.data.some(r=>r.fraisDe===id)?'Supprimer (ses frais aussi) ?':'Supprimer ?'))return;S.data=S.data.filter(r=>r.id!==id&&r.fraisDe!==id);echCleanupOrphans();saveAll();showToast('Supprimée');renderJournal();renderDashboard()}
 
 function impGoStep(n){[1,2,3,4].forEach(i=>{document.getElementById('ip'+i).classList.toggle('active',i===n);const s=document.getElementById('is'+i);s.classList.remove('active','done');if(i<n)s.classList.add('done');if(i===n)s.classList.add('active')})}
 function impLog(p,msg,type=''){const el=document.getElementById('implog'+p);el.style.display='block';el.innerHTML+=`<div class="${type}">[${new Date().toLocaleTimeString()}] ${msg}</div>`;el.scrollTop=el.scrollHeight}
